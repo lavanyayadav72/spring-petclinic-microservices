@@ -1,20 +1,27 @@
-FROM eclipse-temurin:17 as builder
-WORKDIR application
-ARG ARTIFACT_NAME
-COPY ${ARTIFACT_NAME}.jar application.jar
-RUN java -Djarmode=layertools -jar application.jar extract
+# Use an official Maven image as the base image
+FROM maven:3.8.4-openjdk-11 AS builder
 
+# Set the working directory in the container
+WORKDIR /app
 
-FROM eclipse-temurin:17
-WORKDIR application
+# Copy the Maven project files to the container
+COPY . /app
 
-ARG EXPOSED_PORT
-EXPOSE ${EXPOSED_PORT}
+# Build the project using Maven and package it into a JAR file
+RUN mvn clean package
 
-ENV SPRING_PROFILES_ACTIVE docker
+# Use an official OpenJDK image as the base image for the runtime environment
+FROM adoptopenjdk:11-jre-hotspot
 
-COPY --from=builder application/dependencies/ ./
-COPY --from=builder application/spring-boot-loader/ ./
-COPY --from=builder application/snapshot-dependencies/ ./
-COPY --from=builder application/application/ ./
-ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy the JAR file built in the previous stage to the container
+COPY --from=builder /app/target/*.jar /app/application.jar
+
+# Expose the port on which the Spring Boot application will run
+EXPOSE 9090
+
+# Command to run the Spring Boot application
+CMD ["java", "-jar", "application.jar"]
+
